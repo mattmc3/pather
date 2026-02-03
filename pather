@@ -1,0 +1,93 @@
+#!/usr/bin/env lua
+
+local function usage()
+	io.stdout:write([[
+usage: pather [-aAther] path [...]
+
+Apply path modifiers to one or more paths.
+
+Flags:
+  --help  print this help
+  -a      absolute path (without resolving symlinks)
+  -A      absolute path (resolving symlinks via realpath)
+  -h      head (dirname - remove last path component)
+  -t      tail (basename - keep only last path component)
+  -e      extension (extract file extension)
+  -r      remove extension
+
+Modifiers can be combined and are applied left-to-right.
+
+Examples:
+  pather -ahh /path/to/file.txt     # get grandparent directory
+  pather -at ../relative/path       # absolute path + basename
+  pather -r file.tar.gz             # remove extension -> file.tar
+  pather -e document.pdf            # get extension -> pdf
+]])
+end
+
+-- Resolve absolute path without following symlinks (:a)
+local function resolve_path(p)
+	if not p:match("^/") then p = os.getenv("PWD") .. "/" .. p end
+	local parts = {}
+	for seg in p:gmatch("[^/]+") do
+		if seg == ".." then table.remove(parts)
+		elseif seg ~= "." then table.insert(parts, seg) end
+	end
+	if #parts == 0 then return "/" end
+	return "/" .. table.concat(parts, "/")
+end
+
+-- Check for help flags
+for i = 1, #arg do
+	if arg[i] == "--help" then
+		usage()
+		os.exit(0)
+	end
+end
+
+local mods, paths = {}, {}
+for i = 1, #arg do
+	if arg[i]:match("^%-") then
+		for c in arg[i]:sub(2):gmatch(".") do mods[#mods+1] = c end
+	else
+		paths[#paths+1] = arg[i]
+	end
+end
+
+if #paths == 0 then
+	io.stderr:write("usage: pather [-aAther] path [...]\n")
+	os.exit(1)
+end
+
+for _, p in ipairs(paths) do
+	for _, m in ipairs(mods) do
+		if m == "a" then
+			-- absolute
+			p = resolve_path(p)
+		elseif m == "A" then
+			-- absolute + resolve symlinks
+			local q = "'" .. p:gsub("'", "'\\''") .. "'"
+			local f = io.popen("realpath " .. q .. " 2>/dev/null")
+			local r = f:read("*l"); f:close()
+			p = r or resolve_path(p)
+		elseif m == "h" then
+			-- head (dirname)
+			if p:find("/") then
+				p = p:match("(.+)/") or "/"
+			else
+				p = "."
+			end
+		elseif m == "t" then
+			-- tail (basename)
+			p = p:match("[^/]+$") or p
+		elseif m == "e" then
+			-- extension
+			local fn = p:match("[^/]+$") or ""
+			p = fn:match(".*%.(.+)$") or ""
+		elseif m == "r" then
+			-- remove extension
+			p = p:match("(.*)%..+$") or p
+		end
+	end
+	print(p)
+end
