@@ -1,5 +1,7 @@
 #!/usr/bin/env lua
 
+local version = "1.0.0"
+
 local function usage()
 	io.stdout:write([[
 usage: pather [-aAther] path [...]
@@ -37,9 +39,12 @@ local function resolve_path(p)
 	return "/" .. table.concat(parts, "/")
 end
 
--- Check for help flags
+-- Check for version/help flags
 for i = 1, #arg do
-	if arg[i] == "--help" then
+	if arg[i] == "-v" or arg[i] == "--version" then
+		io.stdout:write("pather version " .. version .. "\n")
+		os.exit(0)
+	elseif arg[i] == "--help" then
 		usage()
 		os.exit(0)
 	end
